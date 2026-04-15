@@ -3,10 +3,14 @@ Simple RAG API with Gemini and Pinecone
 FastAPI application with file upload and query endpoints
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
+import json
+import uuid
+from datetime import datetime
 from pinecone import Pinecone, ServerlessSpec
 import google.genai as genai
 from google.genai import types
@@ -24,6 +28,15 @@ app = FastAPI(
     title="Schemes RAG API with Gemini",
     description="Upload documents and query them using Gemini AI",
     version="1.0.0"
+)
+
+# CORS — tighten allow_origins to your frontend domain in production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Configuration
@@ -90,6 +103,50 @@ class UploadResponse(BaseModel):
     message: str
     filename: str
     chunks_added: int
+
+class DeleteFileResponse(BaseModel):
+    message: str
+    filename: str
+    deleted_chunks: int
+
+# ── Eval dataset models ────────────────────────────────────────────────────────
+
+EVAL_STORE_PATH = os.path.join(os.path.dirname(__file__), "eval_store.json")
+
+def load_eval_store() -> dict:
+    if os.path.exists(EVAL_STORE_PATH):
+        with open(EVAL_STORE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"silver": [], "golden": []}
+
+def save_eval_store(store: dict):
+    with open(EVAL_STORE_PATH, "w", encoding="utf-8") as f:
+        json.dump(store, f, indent=2, ensure_ascii=False)
+
+def _parse_llm_json(text: str) -> dict:
+    """Strip markdown fences then parse JSON."""
+    raw = text.strip()
+    if raw.startswith("```"):
+        parts = raw.split("```")
+        raw = parts[1] if len(parts) > 1 else parts[0]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    return json.loads(raw.strip())
+
+class GenerateSilverRequest(BaseModel):
+    filename: str
+    num_questions_per_chunk: int = 2
+    max_chunks: int = 10
+
+class PromoteRequest(BaseModel):
+    silver_id: str
+    question: Optional[str] = ""
+    expected_answer: Optional[str] = ""
+
+class RunEvalRequest(BaseModel):
+    dataset_type: str = "golden"   # "silver" | "golden" | "both"
+    top_k: int = 3
+    use_llm_judge: bool = True
 
 # Helper functions
 def extract_text_from_file(file: UploadFile) -> str:
@@ -305,6 +362,76 @@ Answer:"""
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
 
+@app.get("/files")
+async def list_files():
+    """
+    List all uploaded files
+
+    - Returns: List of unique filenames stored in the database
+    """
+    try:
+        stats = index.describe_index_stats()
+        total = stats.total_vector_count
+
+        if total == 0:
+            return {"files": [], "total_vectors": 0}
+
+        dummy_vector = [0.0] * 768
+        results = index.query(
+            vector=dummy_vector,
+            top_k=min(10000, total),
+            include_metadata=True
+        )
+
+        filenames = sorted(set(
+            match['metadata']['filename']
+            for match in results['matches']
+            if match.get('metadata', {}).get('filename')
+        ))
+
+        return {"files": filenames, "total_vectors": total}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+
+
+@app.delete("/files/{filename:path}", response_model=DeleteFileResponse)
+async def delete_file(filename: str):
+    """
+    Delete a specific file and all its embeddings
+
+    - **filename**: Name of the file to delete
+    - Returns: Confirmation with number of chunks deleted
+    """
+    try:
+        # Zero vector breaks cosine similarity with metadata filters; use a real embedding.
+        query_emb = get_embedding("document text content")
+        results = index.query(
+            vector=query_emb,
+            filter={"filename": {"$eq": filename}},
+            top_k=10000,
+            include_metadata=False
+        )
+
+        ids_to_delete = [match['id'] for match in results['matches']]
+
+        if not ids_to_delete:
+            raise HTTPException(status_code=404, detail=f"File '{filename}' not found in database")
+
+        batch_size = 1000
+        for i in range(0, len(ids_to_delete), batch_size):
+            index.delete(ids=ids_to_delete[i:i + batch_size])
+
+        return DeleteFileResponse(
+            message=f"File '{filename}' deleted successfully",
+            filename=filename,
+            deleted_chunks=len(ids_to_delete)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
+
+
 @app.delete("/clear")
 async def clear_database():
     """
@@ -335,6 +462,223 @@ async def get_stats():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
+
+# ── Eval endpoints ─────────────────────────────────────────────────────────────
+
+@app.post("/eval/generate-silver")
+async def generate_silver(request: GenerateSilverRequest):
+    """
+    Auto-generate Q&A pairs (silver dataset) from a file's chunks using Gemini.
+    """
+    # A zero vector has undefined cosine similarity and returns empty results
+    # when combined with a metadata filter — use a real embedding instead.
+    query_emb = get_embedding("main topics key findings important information")
+    results = index.query(
+        vector=query_emb,
+        filter={"filename": {"$eq": request.filename}},
+        top_k=request.max_chunks,
+        include_metadata=True
+    )
+
+    if not results["matches"]:
+        raise HTTPException(status_code=404, detail=f"No chunks found for '{request.filename}'")
+
+    store = load_eval_store()
+    new_pairs = []
+
+    for match in results["matches"]:
+        chunk_text = match["metadata"]["text"]
+
+        prompt = f"""Generate {request.num_questions_per_chunk} factual question-answer pairs from the text below.
+Rules:
+- Each question must be answerable directly from the text
+- Prefer specific, verifiable answers (numbers, names, percentages, model names)
+- Return ONLY a valid JSON array, no extra text
+
+Format: [{{"question": "...", "answer": "..."}}]
+
+Text:
+{chunk_text}"""
+
+        try:
+            resp = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            qa_list = _parse_llm_json(resp.text)
+            for qa in qa_list:
+                if not qa.get("question") or not qa.get("answer"):
+                    continue
+                pair = {
+                    "id": f"s_{uuid.uuid4().hex[:8]}",
+                    "question": qa["question"].strip(),
+                    "expected_answer": qa["answer"].strip(),
+                    "source_file": request.filename,
+                    "chunk_text": chunk_text[:600],
+                    "pair_type": "silver",
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+                store["silver"].append(pair)
+                new_pairs.append(pair)
+        except Exception as e:
+            print(f"Silver gen error for chunk {match['id']}: {e}")
+            continue
+
+    save_eval_store(store)
+    return {"generated": len(new_pairs), "pairs": new_pairs}
+
+
+@app.get("/eval/pairs")
+async def get_eval_pairs(pair_type: str = Query("all", enum=["silver", "golden", "all"])):
+    """List eval pairs filtered by type."""
+    store = load_eval_store()
+    if pair_type == "silver":
+        return {"pairs": store["silver"]}
+    if pair_type == "golden":
+        return {"pairs": store["golden"]}
+    return {"pairs": store["silver"] + store["golden"]}
+
+
+@app.post("/eval/promote")
+async def promote_to_golden(request: PromoteRequest):
+    """Promote a silver pair to the golden dataset (optionally editing Q/A)."""
+    store = load_eval_store()
+    silver = next((p for p in store["silver"] if p["id"] == request.silver_id), None)
+    if not silver:
+        raise HTTPException(status_code=404, detail=f"Silver pair '{request.silver_id}' not found")
+
+    golden = {
+        "id": f"g_{uuid.uuid4().hex[:8]}",
+        "question": (request.question or silver["question"]).strip(),
+        "expected_answer": (request.expected_answer or silver["expected_answer"]).strip(),
+        "source_file": silver["source_file"],
+        "chunk_text": silver.get("chunk_text", ""),
+        "pair_type": "golden",
+        "promoted_from": request.silver_id,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    store["golden"].append(golden)
+    store["silver"] = [p for p in store["silver"] if p["id"] != request.silver_id]
+    save_eval_store(store)
+    return {"message": "Promoted to golden", "pair": golden}
+
+
+@app.delete("/eval/pairs/{pair_id}")
+async def delete_eval_pair(pair_id: str):
+    """Delete a silver or golden pair by ID."""
+    store = load_eval_store()
+    before = len(store["silver"]) + len(store["golden"])
+    store["silver"] = [p for p in store["silver"] if p["id"] != pair_id]
+    store["golden"] = [p for p in store["golden"] if p["id"] != pair_id]
+    if len(store["silver"]) + len(store["golden"]) == before:
+        raise HTTPException(status_code=404, detail=f"Pair '{pair_id}' not found")
+    save_eval_store(store)
+    return {"message": f"Deleted '{pair_id}'"}
+
+
+@app.post("/eval/run")
+async def run_evaluation(request: RunEvalRequest):
+    """
+    Run evaluation over silver / golden / both datasets.
+    Uses Gemini as an LLM judge to score each answer 0.0–1.0.
+    """
+    store = load_eval_store()
+    if request.dataset_type == "silver":
+        pairs = store["silver"]
+    elif request.dataset_type == "golden":
+        pairs = store["golden"]
+    else:
+        pairs = store["silver"] + store["golden"]
+
+    if not pairs:
+        raise HTTPException(status_code=400, detail=f"No '{request.dataset_type}' pairs found. Generate or promote some first.")
+
+    results = []
+
+    for pair in pairs:
+        # ── RAG retrieval ──────────────────────────────────────────────────
+        q_emb = get_query_embedding(pair["question"])
+        matches = index.query(vector=q_emb, top_k=request.top_k, include_metadata=True)
+
+        context_parts = []
+        sources = []
+        for i, m in enumerate(matches["matches"]):
+            context_parts.append(f"[{i+1}] {m['metadata']['text']}")
+            sources.append({"filename": m["metadata"]["filename"], "score": float(m["score"])})
+
+        context = "\n\n".join(context_parts)
+
+        rag_prompt = f"""Answer the question using only the context below. If the answer is not in the context, say so clearly.
+
+Context:
+{context}
+
+Question: {pair['question']}
+Answer:"""
+
+        rag_resp = client.models.generate_content(model="gemini-2.5-flash", contents=rag_prompt)
+        rag_answer = rag_resp.text.strip()
+
+        # ── LLM judge ─────────────────────────────────────────────────────
+        score, passed, reasoning = 0.0, False, ""
+
+        if request.use_llm_judge:
+            judge_prompt = f"""You are an impartial evaluation judge for a RAG system.
+
+Question: {pair['question']}
+Expected Answer: {pair['expected_answer']}
+RAG Answer: {rag_answer}
+
+Score the RAG answer from 0.0 to 1.0:
+- 1.0  All key facts from expected answer are present and correct
+- 0.7  Most key facts present, minor gaps
+- 0.4  Some relevant info but missing important facts
+- 0.0  Wrong, hallucinated, or irrelevant
+
+Respond ONLY with valid JSON (no markdown):
+{{"score": 0.0, "passed": false, "reasoning": "one sentence"}}"""
+
+            try:
+                j_resp = client.models.generate_content(model="gemini-2.5-flash", contents=judge_prompt)
+                j = _parse_llm_json(j_resp.text)
+                score = float(j.get("score", 0.0))
+                passed = bool(j.get("passed", score >= 0.5))
+                reasoning = j.get("reasoning", "")
+            except Exception as e:
+                reasoning = f"Judge parse error: {e}"
+        else:
+            # keyword fallback
+            key_words = pair["expected_answer"].lower().split()[:6]
+            matches_kw = sum(1 for w in key_words if w in rag_answer.lower())
+            score = round(matches_kw / max(len(key_words), 1), 2)
+            passed = score >= 0.5
+            reasoning = f"keyword match {matches_kw}/{len(key_words)}"
+
+        results.append({
+            "pair_id": pair["id"],
+            "pair_type": pair["pair_type"],
+            "source_file": pair.get("source_file", ""),
+            "question": pair["question"],
+            "expected_answer": pair["expected_answer"],
+            "rag_answer": rag_answer,
+            "sources": sources,
+            "score": round(score, 3),
+            "passed": passed,
+            "reasoning": reasoning,
+        })
+
+    total = len(results)
+    passed_count = sum(1 for r in results if r["passed"])
+    avg_score = round(sum(r["score"] for r in results) / total, 3) if total else 0.0
+
+    return {
+        "summary": {
+            "total": total,
+            "passed": passed_count,
+            "failed": total - passed_count,
+            "avg_score": avg_score,
+            "pass_rate": round(passed_count / total * 100, 1) if total else 0.0,
+        },
+        "results": results,
+    }
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,0 +1,95 @@
+{
+  "silver": [
+    {
+      "id": "s_1b003e51",
+      "question": "What is the ISSN for Archives of Current Research International?",
+      "expected_answer": "2454 -7077",
+      "source_file": "3.pdf",
+      "chunk_text": "____________________________________________ _________________________________________________________  \n \n*Corresponding author: Email: draak_ahs@vignan.ac.in ; \n \nCite as:  Aruna Kumari A, and Praveen Kumar P. 2025. “Comparative Analysis of Chilli Farming Systems: A Decomposition and \nPartial Budgeting Approach in Andhra Pradesh, India”. Archives of Current Research I nternational 25 (9):84 –93. \nhttps://doi.org/10.9734/acri/2025/v25i91478.  \n \n \n \nArchives of Current Research International  \n \nVolume 25, Issue 9, Page 84-93, 2025 ; Article no.ACRI .142903  \nISSN: 2454 -7077  \n \n \n \n \nCompar",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:37.068120"
+    },
+    {
+      "id": "s_dfc31a67",
+      "question": "Who are the authors of the paper titled 'Comparative Analysis of Chilli Farming Systems: A Decomposition and Partial Budgeting Approach in Andhra Pradesh, India'?",
+      "expected_answer": "Aruna Kumari A and Praveen Kumar P",
+      "source_file": "3.pdf",
+      "chunk_text": "____________________________________________ _________________________________________________________  \n \n*Corresponding author: Email: draak_ahs@vignan.ac.in ; \n \nCite as:  Aruna Kumari A, and Praveen Kumar P. 2025. “Comparative Analysis of Chilli Farming Systems: A Decomposition and \nPartial Budgeting Approach in Andhra Pradesh, India”. Archives of Current Research I nternational 25 (9):84 –93. \nhttps://doi.org/10.9734/acri/2025/v25i91478.  \n \n \n \nArchives of Current Research International  \n \nVolume 25, Issue 9, Page 84-93, 2025 ; Article no.ACRI .142903  \nISSN: 2454 -7077  \n \n \n \n \nCompar",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:37.068120"
+    },
+    {
+      "id": "s_e6250a4d",
+      "question": "What is the title of the article authored by Untari, D. W., & Vellema, S.?",
+      "expected_answer": "Are collective trading organisations necessarily inclusive of smallholder farmers? A comparative analysis of farmer-led auctions in the Javanese chilli market.",
+      "source_file": "3.pdf",
+      "chunk_text": "/a45625  \nTsinigo, E., Ohene, K. Y., Fialor, S. C., & Asante, \nI. T. (2016). Decomposition analysis of \ntechnological change in rice produ ction in \nGhana. British Journal of Applied Science \n& Technology, 18 (1), 1 –11. \nUntari, D. W., & Vellema, S. (2022). Are \ncollective trading organisations necessarily \ninclusive of smallholder farmers? A \ncomparative analysis of farmer -led \nauctions in the Javan ese chilli market. \nJournal of Agricultural and Environmental \nEthics, 35 (4), 19. \nhttps://link.springer.com/article/10.1007/s1\n0806 -022-09891 -6 \n \nDisclaimer /Publisher’s Note: The statement",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:43.680685"
+    },
+    {
+      "id": "s_cb6398a1",
+      "question": "In what year was the article \"Decomposition analysis of technological change in rice production in Ghana\" published?",
+      "expected_answer": "2016",
+      "source_file": "3.pdf",
+      "chunk_text": "/a45625  \nTsinigo, E., Ohene, K. Y., Fialor, S. C., & Asante, \nI. T. (2016). Decomposition analysis of \ntechnological change in rice produ ction in \nGhana. British Journal of Applied Science \n& Technology, 18 (1), 1 –11. \nUntari, D. W., & Vellema, S. (2022). Are \ncollective trading organisations necessarily \ninclusive of smallholder farmers? A \ncomparative analysis of farmer -led \nauctions in the Javan ese chilli market. \nJournal of Agricultural and Environmental \nEthics, 35 (4), 19. \nhttps://link.springer.com/article/10.1007/s1\n0806 -022-09891 -6 \n \nDisclaimer /Publisher’s Note: The statement",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:43.680685"
+    },
+    {
+      "id": "s_73bdc225",
+      "question": "Who authored the Ph.D. thesis on sugarcane in Maharashtra published in 2016?",
+      "expected_answer": "K. B. Hambirao",
+      "source_file": "3.pdf",
+      "chunk_text": "tions for the Smallh olders , \norganized by the International Food Policy \nResearch Institute, Asia Office, New             \nDelhi, and the Institute of Economic \nGrowth, New Delhi, at New Delhi, \nSeptember 20 –21. FAOSTAT. (2023). Crops and livestock products \n– Chilli production data . Food and \nAgriculture Organization of the United \nNations. https://www.fao.org/faostat/  \nHambirao, K. B. (2016). Economic analysis and \nimpact assessment of technology adoption \nfor sugarcane in Maharashtra  (Ph.D. \nthesis). Mahatma Phule Krishi Vidyapeeth, \nRahuri, Maharashtra, India.  \nHile, R. B., Sanap, D",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:49.044276"
+    },
+    {
+      "id": "s_b6d45dc6",
+      "question": "Which organizations jointly organized the event held on September 20-21 in New Delhi?",
+      "expected_answer": "The International Food Policy Research Institute, Asia Office, New Delhi, and the Institute of Economic Growth, New Delhi",
+      "source_file": "3.pdf",
+      "chunk_text": "tions for the Smallh olders , \norganized by the International Food Policy \nResearch Institute, Asia Office, New             \nDelhi, and the Institute of Economic \nGrowth, New Delhi, at New Delhi, \nSeptember 20 –21. FAOSTAT. (2023). Crops and livestock products \n– Chilli production data . Food and \nAgriculture Organization of the United \nNations. https://www.fao.org/faostat/  \nHambirao, K. B. (2016). Economic analysis and \nimpact assessment of technology adoption \nfor sugarcane in Maharashtra  (Ph.D. \nthesis). Mahatma Phule Krishi Vidyapeeth, \nRahuri, Maharashtra, India.  \nHile, R. B., Sanap, D",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:49.044276"
+    },
+    {
+      "id": "s_c4ec8b36",
+      "question": "What is the title of the paper authored by Balakrishna in 2013?",
+      "expected_answer": "Economics of Bt cotton in India.",
+      "source_file": "3.pdf",
+      "chunk_text": "ial \ninterests or personal relationships that could \nhave appeared to influence the work reported in \nthis paper.  \n \nREFERENCES  \n \nBalakrishna, A. (2013). Economics of Bt cotton in \nIndia. Journal of Development and \nAgricultural Economics, 4 (5), 119 –124. \nBarrett, C. B., Christiaensen , L., Sheahan, M., & \nShimeles, A. (2021). Toward a structural \ntransformation for rural development: A \nframework and application to Ethiopia. \nWorld Development, 146 , 105561. \nhttps://doi.org/10.1016/j.worlddev.2021.10\n5561  \nBirthal, P. S., Joshi, P. K., Roy, D ., & Thorat, A. \n(2006). Diversification in",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:54.025671"
+    },
+    {
+      "id": "s_793f7e87",
+      "question": "Who are the authors of the paper 'Toward a structural transformation for rural development: A framework and application to Ethiopia'?",
+      "expected_answer": "C. B. Barrett, L. Christiaensen, M. Sheahan, & A. Shimeles.",
+      "source_file": "3.pdf",
+      "chunk_text": "ial \ninterests or personal relationships that could \nhave appeared to influence the work reported in \nthis paper.  \n \nREFERENCES  \n \nBalakrishna, A. (2013). Economics of Bt cotton in \nIndia. Journal of Development and \nAgricultural Economics, 4 (5), 119 –124. \nBarrett, C. B., Christiaensen , L., Sheahan, M., & \nShimeles, A. (2021). Toward a structural \ntransformation for rural development: A \nframework and application to Ethiopia. \nWorld Development, 146 , 105561. \nhttps://doi.org/10.1016/j.worlddev.2021.10\n5561  \nBirthal, P. S., Joshi, P. K., Roy, D ., & Thorat, A. \n(2006). Diversification in",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:54.025671"
+    },
+    {
+      "id": "s_5cb1e129",
+      "question": "What is the copyright year mentioned for the content?",
+      "expected_answer": "2025",
+      "source_file": "3.pdf",
+      "chunk_text": "isclaim resp onsibility for \nany injury to people or property resulting from any ideas, methods, instructions or products referred to in the content.  \n \n© Copyright (202 5): Author(s). The licensee is the journal publisher. This is an Open Access article distributed under the terms \nof the Creative Commons Attribution License ( http://creativecommons.org/licenses/by/4.0 ), which permits unrestricted use, \ndistribution, and reproduction in any medium, provided the original work is properly cited.   \n \n \n Peer -review history:  \nThe peer review history for this paper can be accessed here:  \nhtt",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:58.788763"
+    },
+    {
+      "id": "s_111b5541",
+      "question": "What is the URL for the Creative Commons Attribution License mentioned in the text?",
+      "expected_answer": "http://creativecommons.org/licenses/by/4.0",
+      "source_file": "3.pdf",
+      "chunk_text": "isclaim resp onsibility for \nany injury to people or property resulting from any ideas, methods, instructions or products referred to in the content.  \n \n© Copyright (202 5): Author(s). The licensee is the journal publisher. This is an Open Access article distributed under the terms \nof the Creative Commons Attribution License ( http://creativecommons.org/licenses/by/4.0 ), which permits unrestricted use, \ndistribution, and reproduction in any medium, provided the original work is properly cited.   \n \n \n Peer -review history:  \nThe peer review history for this paper can be accessed here:  \nhtt",
+      "pair_type": "silver",
+      "created_at": "2026-04-15T08:03:58.788763"
+    }
+  ],
+  "golden": []
+}
