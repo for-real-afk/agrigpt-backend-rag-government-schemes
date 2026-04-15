@@ -51,6 +51,8 @@ source venv/bin/activate
 
 echo "=== Installing dependencies ==="
 pip install --upgrade pip
+# Install CPU-only torch first — avoids downloading 900 MB of CUDA libs on a GPU-less instance
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements-backend.txt
 
 # ── Environment file ──────────────────────────────────────────────────────────
