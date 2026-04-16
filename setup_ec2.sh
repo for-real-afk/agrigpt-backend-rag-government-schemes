@@ -83,7 +83,7 @@ After=network.target
 User=$CURRENT_USER
 WorkingDirectory=$PROJECT_DIR
 EnvironmentFile=$PROJECT_DIR/.env
-ExecStart=$VENV_UVICORN shemes_rag:app --host 127.0.0.1 --port 8010 --workers 1 --log-level info
+ExecStart=$VENV_UVICORN shemes_rag:app --host 127.0.0.1 --port 8013 --workers 1 --log-level info
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -117,9 +117,9 @@ server {
 
     # ── RAG backend proxy ─────────────────────────────────────────────────────
     # Frontend calls /api/fastapi/query, /api/fastapi/upload, etc.
-    # Nginx strips /api/fastapi and forwards to localhost:8010
+    # Nginx strips /api/fastapi and forwards to localhost:8013
     location /api/fastapi/ {
-        proxy_pass         http://127.0.0.1:8010/;
+        proxy_pass         http://127.0.0.1:8013/;
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
