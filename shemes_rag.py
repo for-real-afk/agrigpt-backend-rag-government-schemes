@@ -19,6 +19,7 @@ import docx
 import io
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,10 +42,28 @@ app.add_middleware(
 
 # Configuration
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 INDEX_NAME = "schemes-rag"
 CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
+CHUNK_OVERLAP = 400
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+# Collect all available Gemini API keys (GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, ...)
+_raw_keys = [
+    os.getenv("GEMINI_API_KEY"),
+    os.getenv("GEMINI_API_KEY_2"),
+    os.getenv("GEMINI_API_KEY_3"),
+]
+GEMINI_API_KEYS = [k for k in _raw_keys if k]
+
+# Groq fallback (free tier: 14,400 req/day — set GROQ_API_KEY in .env)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+if not GEMINI_API_KEYS and not GROQ_API_KEY:
+    raise ValueError("Set at least one GEMINI_API_KEY or GROQ_API_KEY")
+
+# Use first key as default (used for embedding model init etc.)
+GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None
 
 if not PINECONE_API_KEY:
     raise ValueError("PINECONE_API_KEY environment variable not set")
@@ -321,25 +340,42 @@ async def query_documents(request: QueryRequest):
                 answer="No relevant information found in the database.",
                 sources=[]
             )
-        
+
+        # Drop chunks below relevance threshold to avoid hallucination on off-topic queries
+        RELEVANCE_THRESHOLD = 0.55
+        MIN_RELEVANT_CHUNKS = 2
+        relevant_matches = [m for m in results['matches'] if m['score'] >= RELEVANCE_THRESHOLD]
+        if len(relevant_matches) < MIN_RELEVANT_CHUNKS:
+            return QueryResponse(
+                answer="This specific information is not covered in the provided document.",
+                sources=[]
+            )
+
         # Prepare context from retrieved chunks
         context_parts = []
         sources = []
         
-        for i, match in enumerate(results['matches']):
+        for i, match in enumerate(relevant_matches):
             context_parts.append(f"[{i+1}] {match['metadata']['text']}")
             sources.append({
                 'chunk_id': match['id'],
                 'filename': match['metadata']['filename'],
                 'score': float(match['score']),
-                'text': match['metadata']['text'][:200] + "..."
+                'text': match['metadata']['text']
             })
         
         context = "\n\n".join(context_parts)
         
         # Generate answer using Gemini
-        prompt = f"""Based on the following context, answer the question. 
-If the answer cannot be found in the context, say so clearly.
+        prompt = f"""You are an expert agricultural assistant. Answer ONLY using the provided context.
+
+Rules:
+- Use only facts explicitly stated or directly calculable from the context.
+- If the question describes a symptom (e.g. yellowing leaves, spots, wilting), list ALL diseases or conditions mentioned in the context that include that symptom, along with their treatments.
+- If a value or date is not stated but can be logically calculated from context figures, do so and note your reasoning briefly.
+- NEVER mention diseases, treatments, or facts not present anywhere in the context.
+- Only say "This specific information is not covered in the provided document" if the context contains zero mentions of the topic — not if the topic appears indirectly or within a broader discussion.
+- Be concise. Use bullet points for multi-part answers.
 
 Context:
 {context}
@@ -348,11 +384,44 @@ Question: {request.question}
 
 Answer:"""
         
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt
-        )
-        answer = response.text
+        answer = None
+        last_error = None
+
+        # Try each Gemini key first
+        for api_key in GEMINI_API_KEYS:
+            try:
+                _client = genai.Client(api_key=api_key)
+                response = _client.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=prompt
+                )
+                answer = response.text
+                print(f"Used Gemini key ...{api_key[-6:]}")
+                break
+            except Exception as e:
+                print(f"Key ...{api_key[-6:]} failed: {e}")
+                last_error = e
+
+        # Fallback to Groq if all Gemini keys failed
+        if answer is None and GROQ_API_KEY:
+            try:
+                groq_client = OpenAI(
+                    api_key=GROQ_API_KEY,
+                    base_url="https://api.groq.com/openai/v1"
+                )
+                groq_response = groq_client.chat.completions.create(
+                    model=GROQ_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                )
+                answer = groq_response.choices[0].message.content
+                print(f"Used Groq fallback ({GROQ_MODEL})")
+            except Exception as e:
+                print(f"Groq fallback failed: {e}")
+                last_error = e
+
+        if answer is None:
+            raise last_error
         
         return QueryResponse(
             answer=answer,

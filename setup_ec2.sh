@@ -83,7 +83,7 @@ After=network.target
 User=$CURRENT_USER
 WorkingDirectory=$PROJECT_DIR
 EnvironmentFile=$PROJECT_DIR/.env
-ExecStart=$VENV_UVICORN shemes_rag:app --host 0.0.0.0 --port 8010 --workers 1 --log-level info
+ExecStart=$VENV_UVICORN shemes_rag:app --host 127.0.0.1 --port 8010 --workers 1 --log-level info
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -97,11 +97,61 @@ sudo systemctl daemon-reload
 sudo systemctl enable agrigpt-rag
 sudo systemctl start agrigpt-rag
 
+# ── Nginx ─────────────────────────────────────────────────────────────────────
+echo "=== Installing Nginx ==="
+sudo apt-get install -y nginx
+
+echo "=== Configuring Nginx ==="
+sudo tee /etc/nginx/sites-available/agrigpt > /dev/null <<'NGINXEOF'
+server {
+    listen 80;
+    server_name _;
+
+    # ── Frontend (React SPA) ──────────────────────────────────────────────────
+    root /var/www/agrigpt;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # ── RAG backend proxy ─────────────────────────────────────────────────────
+    # Frontend calls /api/fastapi/query, /api/fastapi/upload, etc.
+    # Nginx strips /api/fastapi and forwards to localhost:8010
+    location /api/fastapi/ {
+        proxy_pass         http://127.0.0.1:8010/;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+        client_max_body_size 20M;
+    }
+}
+NGINXEOF
+
+sudo ln -sf /etc/nginx/sites-available/agrigpt /etc/nginx/sites-enabled/agrigpt
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl enable nginx
+sudo systemctl restart nginx
+
+# ── Frontend placeholder ──────────────────────────────────────────────────────
+sudo mkdir -p /var/www/agrigpt
+
+PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "<EC2_PUBLIC_IP>")
+
 echo ""
-echo "=== Done! ==="
-echo "Service status:  sudo systemctl status agrigpt-rag"
-echo "Live logs:       sudo journalctl -u agrigpt-rag -f"
-echo "Restart:         sudo systemctl restart agrigpt-rag"
-echo "API docs:        http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):8010/docs"
+echo "=== Backend setup done! ==="
 echo ""
-echo "EC2 Security Group: open inbound TCP port 8010 (or 80 if you set up Nginx)."
+echo "Next step: deploy the frontend"
+echo "  Run deploy_frontend.sh from the agrigpt-frontend directory."
+echo ""
+echo "Service commands:"
+echo "  Status:   sudo systemctl status agrigpt-rag"
+echo "  Logs:     sudo journalctl -u agrigpt-rag -f"
+echo "  Restart:  sudo systemctl restart agrigpt-rag"
+echo ""
+echo "EC2 Security Group: open inbound TCP port 80 (HTTP)."
+echo "App will be available at: http://$PUBLIC_IP"
