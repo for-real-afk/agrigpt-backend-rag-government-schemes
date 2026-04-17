@@ -375,11 +375,14 @@ async def query_documents(request: QueryRequest):
         sub_queries = decompose_query(request.question)
 
         # ── Step 2: retrieve top_k chunks per sub-query, merge & deduplicate ──
+        # For multi-entity queries retrieve extra chunks per sub-query so each
+        # entity's specific data is more likely to appear in the context.
+        chunks_per_sq = request.top_k + 2 if len(sub_queries) > 1 else request.top_k
         seen_ids: set = set()
         all_matches: List[Dict] = []
 
         for sq in sub_queries:
-            for match in retrieve_chunks(sq, request.top_k):
+            for match in retrieve_chunks(sq, chunks_per_sq):
                 if match["id"] not in seen_ids:
                     seen_ids.add(match["id"])
                     all_matches.append(match)
@@ -430,7 +433,7 @@ Rules:
   * Count backwards day by day across month boundaries. Do not estimate loosely.
   * Use both ends of any range (e.g. 240 days AND 270 days) to give a tight min–max window.
   * State the resulting month range clearly: e.g. "flowers in December–February".
-- If the question asks about multiple varieties, answer each one explicitly.
+- If the question asks about multiple varieties, answer each one explicitly using only that variety's own data from the context. NEVER assume one variety behaves like another or extrapolate missing data from a different variety.
 - NEVER mention diseases, treatments, or facts not present anywhere in the context.
 - Only say "This specific information is not covered in the provided document" if the context contains zero mentions of the topic.
 - Be concise. Use bullet points for multi-part answers.
