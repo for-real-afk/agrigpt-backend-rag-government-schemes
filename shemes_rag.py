@@ -315,46 +315,100 @@ async def upload_file(file: UploadFile = File(...)):
         print(f"Error in upload_file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
+def decompose_query(question: str) -> List[str]:
+    """
+    Detect multi-entity queries (e.g. 'jso1 and jso2') and split into focused
+    sub-queries so each entity gets its own retrieval pass.
+    Returns a list of sub-queries, or [question] if no decomposition needed.
+    """
+    prompt = f"""Does this question ask about multiple distinct named items (crop varieties, schemes, models, locations, etc.) that should each be looked up separately?
+
+Question: {question}
+
+If YES, rewrite as individual focused sub-questions.
+If NO, return the original question only.
+
+Respond ONLY with valid JSON (no markdown):
+{{"decompose": true/false, "sub_queries": ["sub-question 1", "sub-question 2"]}}"""
+
+    try:
+        for api_key in GEMINI_API_KEYS:
+            try:
+                _client = genai.Client(api_key=api_key)
+                resp = _client.models.generate_content(
+                    model=GEMINI_MODEL, contents=prompt,
+                    config=types.GenerateContentConfig(temperature=0)
+                )
+                parsed = _parse_llm_json(resp.text)
+                if parsed.get("decompose") and len(parsed.get("sub_queries", [])) > 1:
+                    print(f"Query decomposed into {len(parsed['sub_queries'])} sub-queries: {parsed['sub_queries']}")
+                    return parsed["sub_queries"]
+                return [question]
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return [question]
+
+
+def retrieve_chunks(sub_query: str, top_k: int) -> List[Dict]:
+    """Run a single Pinecone retrieval for one sub-query."""
+    emb = get_query_embedding(sub_query)
+    results = index.query(vector=emb, top_k=top_k, include_metadata=True)
+    return results.get("matches", [])
+
+
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
     """
     Query the document database
-    
+
     - **question**: Your question
     - **top_k**: Number of relevant chunks to retrieve (default: 3)
     - Returns: AI-generated answer with sources
     """
     try:
-        # Get query embedding
-        query_embedding = get_query_embedding(request.question)
-        
-        # Search Pinecone
-        results = index.query(
-            vector=query_embedding,
-            top_k=request.top_k,
-            include_metadata=True
-        )
-        
-        if not results['matches']:
+        RELEVANCE_THRESHOLD = 0.55
+        MIN_RELEVANT_CHUNKS = 2
+
+        # ── Step 1: decompose multi-entity queries ────────────────────────────
+        sub_queries = decompose_query(request.question)
+
+        # ── Step 2: retrieve top_k chunks per sub-query, merge & deduplicate ──
+        seen_ids: set = set()
+        all_matches: List[Dict] = []
+
+        for sq in sub_queries:
+            for match in retrieve_chunks(sq, request.top_k):
+                if match["id"] not in seen_ids:
+                    seen_ids.add(match["id"])
+                    all_matches.append(match)
+
+        if not all_matches:
             return QueryResponse(
                 answer="No relevant information found in the database.",
                 sources=[]
             )
 
-        # Drop chunks below relevance threshold to avoid hallucination on off-topic queries
-        RELEVANCE_THRESHOLD = 0.55
-        MIN_RELEVANT_CHUNKS = 2
-        relevant_matches = [m for m in results['matches'] if m['score'] >= RELEVANCE_THRESHOLD]
-        if len(relevant_matches) < MIN_RELEVANT_CHUNKS:
+        # Sort merged results by score descending
+        all_matches.sort(key=lambda m: m["score"], reverse=True)
+
+        # ── Step 3: apply relevance threshold ────────────────────────────────
+        relevant_matches = [m for m in all_matches if m["score"] >= RELEVANCE_THRESHOLD]
+
+        # For multi-entity queries lower the bar slightly: even 1 relevant chunk
+        # per sub-query is useful, so require at least min(len(sub_queries), 2) chunks
+        min_required = min(len(sub_queries), MIN_RELEVANT_CHUNKS)
+        if len(relevant_matches) < min_required:
             return QueryResponse(
                 answer="This specific information is not covered in the provided document.",
                 sources=[]
             )
 
-        # Prepare context from retrieved chunks
+        # ── Step 4: build context ─────────────────────────────────────────────
         context_parts = []
         sources = []
-        
+
         for i, match in enumerate(relevant_matches):
             context_parts.append(f"[{i+1}] {match['metadata']['text']}")
             sources.append({
