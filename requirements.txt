@@ -1,7 +1,15 @@
+# Local development — includes Streamlit frontend + backend
+# Production (EC2): use requirements-backend.txt instead
+#
+# Install order matters on CPU-only machines:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt
+
 fastapi==0.109.0
-uvicorn==0.27.0
+uvicorn[standard]==0.27.0
 pinecone==5.0.0
 google-genai==1.0.0
+openai>=1.0.0
 python-multipart==0.0.6
 PyPDF2==3.0.1
 python-docx==1.1.0

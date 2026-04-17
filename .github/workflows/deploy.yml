@@ -11,35 +11,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.EC2_HOST }}       # Your EC2 public IP
-          username: ${{ secrets.EC2_USER }}   # e.g. ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}     # Contents of your .pem file
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
             set -e
 
-            echo "==> Navigating to app directory"
-            cd /agrigpt/rag-pest-disease
+            cd /home/ubuntu/agrigpt-backend-rag-government-schemes
 
-            echo "==> Pulling latest code"
-            git reset --hard origin/main
+            git pull origin main
 
-            echo "==> Activating virtual environment"
             source venv/bin/activate
+            pip install -r requirements-backend.txt --quiet
 
-            echo "==> Installing dependencies"
-            pip install -r requirements.txt --quiet
+            sudo systemctl restart agrigpt-rag
 
-            echo "==> Restarting systemd service"
-            sudo systemctl restart agrigpt-rag-govt.service
-
-            echo "==> Service status"
-            sudo systemctl status agrigpt-rag-govt.service --no-pager
-
-            echo "✅ Deployment complete!"
+            sudo systemctl status agrigpt-rag --no-pager
+            echo "Deployment complete."
