@@ -426,9 +426,13 @@ async def query_documents(request: QueryRequest):
 Rules:
 - Use only facts explicitly stated or directly calculable from the context.
 - If the question describes a symptom (e.g. yellowing leaves, spots, wilting), list ALL diseases or conditions mentioned in the context that include that symptom, along with their treatments.
-- If a value or date is not stated but can be logically calculated from context figures, do so and note your reasoning briefly.
+- If a date or month can be calculated from context figures (e.g. harvest month minus maturation days), perform the arithmetic carefully:
+  * Count backwards day by day across month boundaries. Do not estimate loosely.
+  * Use both ends of any range (e.g. 240 days AND 270 days) to give a tight min–max window.
+  * State the resulting month range clearly: e.g. "flowers in December–February".
+- If the question asks about multiple varieties, answer each one explicitly.
 - NEVER mention diseases, treatments, or facts not present anywhere in the context.
-- Only say "This specific information is not covered in the provided document" if the context contains zero mentions of the topic — not if the topic appears indirectly or within a broader discussion.
+- Only say "This specific information is not covered in the provided document" if the context contains zero mentions of the topic.
 - Be concise. Use bullet points for multi-part answers.
 
 Context:
