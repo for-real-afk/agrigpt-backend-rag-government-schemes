@@ -60,15 +60,12 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 if not GEMINI_API_KEYS and not GROQ_API_KEY:
-    raise ValueError("Set at least one GEMINI_API_KEY or GROQ_API_KEY")
-
-# Use first key as default (used for embedding model init etc.)
-GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None
+    raise ValueError("Set at least one GEMINI_API_KEY or GROQ_API_KEY in .env")
 
 if not PINECONE_API_KEY:
     raise ValueError("PINECONE_API_KEY environment variable not set")
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable not set")
+
+GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None
 
 print(f"Pinecone API Key loaded: {PINECONE_API_KEY[:10]}...")
 print(f"Gemini API Key loaded: {GEMINI_API_KEY[:10]}...")
@@ -331,24 +328,37 @@ If NO, return the original question only.
 Respond ONLY with valid JSON (no markdown):
 {{"decompose": true/false, "sub_queries": ["sub-question 1", "sub-question 2"]}}"""
 
-    try:
+    def _call_llm(text: str) -> str:
+        """Try Gemini keys then Groq; return raw text or raise."""
         for api_key in GEMINI_API_KEYS:
             try:
-                _client = genai.Client(api_key=api_key)
-                resp = _client.models.generate_content(
-                    model=GEMINI_MODEL, contents=prompt,
+                _c = genai.Client(api_key=api_key)
+                return _c.models.generate_content(
+                    model=GEMINI_MODEL, contents=text,
                     config=types.GenerateContentConfig(temperature=0)
-                )
-                parsed = _parse_llm_json(resp.text)
-                if parsed.get("decompose") and len(parsed.get("sub_queries", [])) > 1:
-                    print(f"Query decomposed into {len(parsed['sub_queries'])} sub-queries: {parsed['sub_queries']}")
-                    return parsed["sub_queries"]
-                return [question]
+                ).text
             except Exception:
                 continue
-    except Exception:
-        pass
-    return [question]
+        if GROQ_API_KEY:
+            from openai import OpenAI as _OAI
+            groq = _OAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+            return groq.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": text}],
+                temperature=0,
+            ).choices[0].message.content
+        raise RuntimeError("No LLM available")
+
+    try:
+        raw = _call_llm(prompt)
+        parsed = _parse_llm_json(raw)
+        if parsed.get("decompose") and len(parsed.get("sub_queries", [])) > 1:
+            print(f"Query decomposed into {len(parsed['sub_queries'])} sub-queries: {parsed['sub_queries']}")
+            return parsed["sub_queries"]
+        return [question]
+    except Exception as e:
+        print(f"decompose_query failed ({e}), using original query")
+        return [question]
 
 
 def retrieve_chunks(sub_query: str, top_k: int) -> List[Dict]:
@@ -377,7 +387,7 @@ async def query_documents(request: QueryRequest):
         # ── Step 2: retrieve top_k chunks per sub-query, merge & deduplicate ──
         # For multi-entity queries retrieve extra chunks per sub-query so each
         # entity's specific data is more likely to appear in the context.
-        chunks_per_sq = request.top_k + 2 if len(sub_queries) > 1 else request.top_k
+        chunks_per_sq = request.top_k + 5 if len(sub_queries) > 1 else request.top_k
         seen_ids: set = set()
         all_matches: List[Dict] = []
 
@@ -423,27 +433,39 @@ async def query_documents(request: QueryRequest):
         
         context = "\n\n".join(context_parts)
         
-        # Generate answer using Gemini
-        prompt = f"""You are an expert agricultural assistant. Answer ONLY using the provided context.
+        # Generate answer using Gemini / Groq
+        prompt = f"""You are an expert agricultural assistant. Use ONLY the context below to answer.
 
-Rules:
-- Use only facts explicitly stated or directly calculable from the context.
-- If the question describes a symptom (e.g. yellowing leaves, spots, wilting), list ALL diseases or conditions mentioned in the context that include that symptom, along with their treatments.
-- If a date or month can be calculated from context figures (e.g. harvest month minus maturation days), perform the arithmetic carefully:
-  * Count backwards day by day across month boundaries. Do not estimate loosely.
-  * Use both ends of any range (e.g. 240 days AND 270 days) to give a tight min–max window.
-  * State the resulting month range clearly: e.g. "flowers in December–February".
-- If the question asks about multiple varieties, answer each one explicitly using only that variety's own data from the context. NEVER assume one variety behaves like another or extrapolate missing data from a different variety.
-- NEVER mention diseases, treatments, or facts not present anywhere in the context.
-- Only say "This specific information is not covered in the provided document" if the context contains zero mentions of the topic.
-- Be concise. Use bullet points for multi-part answers.
+Follow these three steps explicitly:
+
+STEP 1 — EXTRACT:
+Read every sentence. For each crop variety mentioned in the question, write down exactly:
+  - Maturation days (look for phrases like "matures in X days" or "within X-Y days from flowering")
+  - Harvest month (look for "ready to harvest by", "harvested by", "harvesting season")
+IMPORTANT: If a number appears anywhere in the context, it IS provided. Do NOT say it is missing or not stated.
+
+STEP 2 — CALCULATE (for flowering month questions):
+Use day-of-year subtraction. Reference values:
+  Jan=1, Feb=32, Mar=60, Apr=91, May=121, Jun=152, Jul=182, Aug=213, Sep=244, Oct=274
+Formula: flowering_day = harvest_day − maturation_days
+Apply to both ends of every range, then report the resulting month window.
+Example: JSO-1 harvest Sep end (day 273), maturation 240-270 days:
+  273−270=3 → Jan | 273−240=33 → Feb | harvest Oct end (274+30=304): 304−270=34 → Feb | 304−240=64 → Mar
+  Result: JSO-1 flowers January–March.
+
+STEP 3 — ANSWER:
+  - Answer each variety separately with its own extracted numbers and calculated result.
+  - NEVER say "not provided" or "not stated" if the number is written in the context.
+  - NEVER assume two varieties share the same numbers — use each variety's own figures.
+  - Say "not covered in the document" ONLY if Step 1 found absolutely no mention of the topic.
+  - Be concise. Use bullet points.
 
 Context:
 {context}
 
 Question: {request.question}
 
-Answer:"""
+Answer (show Step 1 extraction briefly, then give the final answer):"""
         
         answer = None
         last_error = None
@@ -570,7 +592,9 @@ async def clear_database():
     - Returns: Confirmation message
     """
     try:
-        # Delete all vectors
+        stats = index.describe_index_stats()
+        if stats.total_vector_count == 0:
+            return {"message": "Database already empty"}
         index.delete(delete_all=True)
         return {"message": "Database cleared successfully"}
     except Exception as e:
