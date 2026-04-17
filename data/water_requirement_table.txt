@@ -1,0 +1,115 @@
+Water Requirement of Nagpur Mandarin (litre / plant / day)
+Conventional planting distance 6 x 6 m (277 plants per hectare)
+
+Each entry below gives the exact daily water requirement in litres per plant for a specific month and plant age.
+
+JANUARY:
+  1-year-old: 7 litres/day
+  2-year-old: 15 litres/day
+  3-year-old: 22 litres/day
+  4-year-old: 30 litres/day
+  5-year-old: 44 litres/day
+  6-year-old: 62 litres/day
+  7-year-old: 72 litres/day
+  8-year-old: 82 litres/day
+  9-year-old: 92 litres/day
+  10-year-old and above: 100 litres/day
+
+FEBRUARY:
+  1-year-old: 9 litres/day
+  2-year-old: 20 litres/day
+  3-year-old: 30 litres/day
+  4-year-old: 40 litres/day
+  5-year-old: 60 litres/day
+  6-year-old: 82 litres/day
+  7-year-old: 96 litres/day
+  8-year-old: 108 litres/day
+  9-year-old: 121 litres/day
+  10-year-old and above: 137 litres/day
+
+MARCH:
+  1-year-old: 12 litres/day
+  2-year-old: 26 litres/day
+  3-year-old: 40 litres/day
+  4-year-old: 53 litres/day
+  5-year-old: 78 litres/day
+  6-year-old: 109 litres/day
+  7-year-old: 127 litres/day
+  8-year-old: 145 litres/day
+  9-year-old: 163 litres/day
+  10-year-old and above: 181 litres/day
+
+APRIL:
+  1-year-old: 14 litres/day
+  2-year-old: 29 litres/day
+  3-year-old: 43 litres/day
+  4-year-old: 63 litres/day
+  5-year-old: 87 litres/day
+  6-year-old: 123 litres/day
+  7-year-old: 143 litres/day
+  8-year-old: 163 litres/day
+  9-year-old: 183 litres/day
+  10-year-old and above: 200 litres/day
+
+MAY:
+  1-year-old: 17 litres/day
+  2-year-old: 34 litres/day
+  3-year-old: 42 litres/day
+  4-year-old: 74 litres/day
+  5-year-old: 100 litres/day
+  6-year-old: 142 litres/day
+  7-year-old: 166 litres/day
+  8-year-old: 188 litres/day
+  9-year-old: 211 litres/day
+  10-year-old and above: 235 litres/day
+
+JUNE:
+  1-year-old: 11 litres/day
+  2-year-old: 22 litres/day
+  3-year-old: 34 litres/day
+  4-year-old: 48 litres/day
+  5-year-old: 67 litres/day
+  6-year-old: 95 litres/day
+  7-year-old: 110 litres/day
+  8-year-old: 129 litres/day
+  9-year-old: 142 litres/day
+  10-year-old and above: 157 litres/day
+
+OCTOBER:
+  1-year-old: 9 litres/day
+  2-year-old: 17 litres/day
+  3-year-old: 27 litres/day
+  4-year-old: 40 litres/day
+  5-year-old: 52 litres/day
+  6-year-old: 79 litres/day
+  7-year-old: 92 litres/day
+  8-year-old: 105 litres/day
+  9-year-old: 118 litres/day
+  10-year-old and above: 131 litres/day
+
+NOVEMBER:
+  1-year-old: 8 litres/day
+  2-year-old: 15 litres/day
+  3-year-old: 25 litres/day
+  4-year-old: 36 litres/day
+  5-year-old: 45 litres/day
+  6-year-old: 63 litres/day
+  7-year-old: 74 litres/day
+  8-year-old: 85 litres/day
+  9-year-old: 96 litres/day
+  10-year-old and above: 105 litres/day
+
+DECEMBER:
+  1-year-old: 6 litres/day
+  2-year-old: 11 litres/day
+  3-year-old: 19 litres/day
+  4-year-old: 24 litres/day
+  5-year-old: 35 litres/day
+  6-year-old: 49 litres/day
+  7-year-old: 57 litres/day
+  8-year-old: 65 litres/day
+  9-year-old: 73 litres/day
+  10-year-old and above: 82 litres/day
+
+Note: July, August, and September are monsoon months. Irrigation is reduced during this period and these months are not listed in the table.
+Source: Citrus Cultivation Guide and Calendar — Annexure Table 1 — Nagpur Mandarin water requirement

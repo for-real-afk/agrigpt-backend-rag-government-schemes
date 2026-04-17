@@ -109,7 +109,7 @@ index = setup_index()
 # Pydantic models
 class QueryRequest(BaseModel):
     question: str
-    top_k: int = 3
+    top_k: int = 5
 
 class QueryResponse(BaseModel):
     answer: str
@@ -378,7 +378,7 @@ async def query_documents(request: QueryRequest):
     - Returns: AI-generated answer with sources
     """
     try:
-        RELEVANCE_THRESHOLD = 0.55
+        RELEVANCE_THRESHOLD = 0.48
         MIN_RELEVANT_CHUNKS = 2
 
         # ── Step 1: decompose multi-entity queries ────────────────────────────
@@ -434,38 +434,22 @@ async def query_documents(request: QueryRequest):
         context = "\n\n".join(context_parts)
         
         # Generate answer using Gemini / Groq
-        prompt = f"""You are an expert agricultural assistant. Use ONLY the context below to answer.
+        prompt = f"""You are an agricultural document assistant. Answer using ONLY the context provided below.
 
-Follow these three steps explicitly:
-
-STEP 1 — EXTRACT:
-Read every sentence. For each crop variety mentioned in the question, write down exactly:
-  - Maturation days (look for phrases like "matures in X days" or "within X-Y days from flowering")
-  - Harvest month (look for "ready to harvest by", "harvested by", "harvesting season")
-IMPORTANT: If a number appears anywhere in the context, it IS provided. Do NOT say it is missing or not stated.
-
-STEP 2 — CALCULATE (for flowering month questions):
-Use day-of-year subtraction. Reference values:
-  Jan=1, Feb=32, Mar=60, Apr=91, May=121, Jun=152, Jul=182, Aug=213, Sep=244, Oct=274
-Formula: flowering_day = harvest_day − maturation_days
-Apply to both ends of every range, then report the resulting month window.
-Example: JSO-1 harvest Sep end (day 273), maturation 240-270 days:
-  273−270=3 → Jan | 273−240=33 → Feb | harvest Oct end (274+30=304): 304−270=34 → Feb | 304−240=64 → Mar
-  Result: JSO-1 flowers January–March.
-
-STEP 3 — ANSWER:
-  - Answer each variety separately with its own extracted numbers and calculated result.
-  - NEVER say "not provided" or "not stated" if the number is written in the context.
-  - NEVER assume two varieties share the same numbers — use each variety's own figures.
-  - Say "not covered in the document" ONLY if Step 1 found absolutely no mention of the topic.
-  - Be concise. Use bullet points.
+Guidelines:
+- Read the full context before answering.
+- If the answer is explicitly stated in the context, quote or paraphrase it directly — do not recalculate values that are already given.
+- If the answer requires arithmetic (e.g. date ranges, totals), show your working briefly.
+- For list questions, count every item present in the context.
+- If the information is not in the context, say "This information is not covered in the provided documents."
+- Be concise. Use bullet points where helpful.
 
 Context:
 {context}
 
 Question: {request.question}
 
-Answer (show Step 1 extraction briefly, then give the final answer):"""
+Answer:"""
         
         answer = None
         last_error = None
